@@ -25,28 +25,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, NamedTuple
 from unittest import TestCase
-from unittest.mock import Mock, _CallList, call, patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 # Third-party Modules:
 import orjson
 
 # JSON Database Modules:
-from json_database.database import (
-	_get_database_path,
-	_get_validator,
-	_orjson_default,
-	_read_database,
-	_validate_database,
-	_write_database,
-	Database,
-	FrozenDatabase,
-	JSONDecodeError,
-	JSONEncodeError,
-	convert_unsupported_types,
-	dump_database,
-	load_database,
-)
+from json_database.database import _get_database_path  # NOQA: PLC2701
+from json_database.database import _orjson_default  # NOQA: PLC2701
+from json_database.database import JSONDecodeError, JSONEncodeError, dump_database, load_database
 
 
 TEST_SCHEMA: bytes = b"""
@@ -107,7 +95,7 @@ class TestDatabase(TestCase):
 		del self.database_dict
 
 	def test_orjson_default(self) -> None:
-		named_tuple = NamedTuple("named_tuple", [])
+		named_tuple = NamedTuple("named_tuple", [])  # NOQA: UP014
 		self.assertEqual(_orjson_default(named_tuple()), [])
 		uuid = uuid4()
 		self.assertEqual(_orjson_default(uuid), uuid.hex)
@@ -123,14 +111,19 @@ class TestDatabase(TestCase):
 		skip_validation = False
 		database_path = _get_database_path(name, extension=".json", directory=directory)
 		mock_read_database.return_value = self.database_bytes
-		loaded_dict = load_database(name, directory=directory, password=password, skip_validation=skip_validation)
+		loaded_dict = load_database(
+			name, directory=directory, password=password, skip_validation=skip_validation
+		)
 		self.assertEqual(loaded_dict, (self.database_dict["database"], self.database_dict["schema_version"]))
 		mock_read_database.assert_called_once_with(database_path, password=password)
-		# Validate would have actually received the full database dict, however the call to load_database popped the schema off the dict.
-		mock_validate_database.assert_called_once_with({"database": self.database_dict["database"]}, database_path)
+		# Validate would have actually received the full database
+		# dict, however the call to load_database popped the schema off the dict.
+		mock_validate_database.assert_called_once_with(
+			{"database": self.database_dict["database"]}, database_path
+		)
 		mock_read_database.reset_mock()
 		mock_validate_database.reset_mock()
-		# Test corrupted data:
+		# Corrupted data.
 		mock_read_database.return_value = b"**JUNK**"
 		with self.assertRaises(JSONDecodeError):
 			load_database(name, directory=directory, password=password, skip_validation=skip_validation)
@@ -141,28 +134,51 @@ class TestDatabase(TestCase):
 	@patch("json_database.database.convert_unsupported_types")
 	@patch("json_database.database._validate_database")
 	@patch("json_database.database._write_database")
-	def test_dump_database(self, mock_write_database: Mock, mock_validate_database: Mock, mock_convert_unsupported_types: Mock, mock_dumps: Mock) -> None:
+	def test_dump_database(
+		self,
+		mock_write_database: Mock,
+		mock_validate_database: Mock,
+		mock_convert_unsupported_types: Mock,
+		mock_dumps: Mock,
+	) -> None:
 		name = "__junk__"
 		directory = Path.cwd()
 		password = None
-		skip_validation = False
 		database_path = _get_database_path(name, extension=".json", directory=directory)
 		mock_convert_unsupported_types.return_value = self.database_dict["database"]
 		mock_dumps.side_effect = lambda *args, **kwargs: self.database_bytes
-		dump_database(name, self.database_dict["database"], directory=directory, version=self.database_dict["schema_version"], password=password)
+		dump_database(
+			name,
+			self.database_dict["database"],
+			directory=directory,
+			version=self.database_dict["schema_version"],
+			password=password,
+		)
 		mock_convert_unsupported_types.assert_called_once_with(self.database_dict["database"])
 		mock_validate_database.assert_called_once_with(self.database_dict, database_path)
-		mock_dumps.assert_called_once_with(self.database_dict, option=self.orjson_options, default=_orjson_default)
+		mock_dumps.assert_called_once_with(
+			self.database_dict, option=self.orjson_options, default=_orjson_default
+		)
 		mock_write_database.assert_called_once_with(database_path, self.database_bytes, password=password)
 		mock_convert_unsupported_types.reset_mock()
 		mock_validate_database.reset_mock()
 		mock_dumps.reset_mock()
 		mock_write_database.reset_mock()
-		# Test problem encoding.
-		mock_dumps.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(orjson.JSONEncodeError("some error"))
+		# Problem encoding.
+		mock_dumps.side_effect = lambda *args, **kwargs: (_ for _ in ()).throw(
+			orjson.JSONEncodeError("some error")
+		)
 		with self.assertRaises(JSONEncodeError):
-			dump_database(name, self.database_dict["database"], directory=directory, version=self.database_dict["schema_version"], password=password)
+			dump_database(
+				name,
+				self.database_dict["database"],
+				directory=directory,
+				version=self.database_dict["schema_version"],
+				password=password,
+			)
 		mock_convert_unsupported_types.assert_called_once_with(self.database_dict["database"])
 		mock_validate_database.assert_called_once_with(self.database_dict, database_path)
-		mock_dumps.assert_called_once_with(self.database_dict, option=self.orjson_options, default=_orjson_default)
+		mock_dumps.assert_called_once_with(
+			self.database_dict, option=self.orjson_options, default=_orjson_default
+		)
 		mock_write_database.assert_not_called()
